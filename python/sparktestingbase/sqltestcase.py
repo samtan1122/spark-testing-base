@@ -60,10 +60,10 @@ class SQLTestCase(SparkTestingBaseReuse):
         :param expected: a schema, can be found in a dataframe with dataframe_obj.schema
         :param result: as above
         """
-        self.assertEqual(len(expected), len(result))
-        expected_lookup = dict((x.name, x) for x in expected)
+        self.assertEqual(len(str(expected)), len(str(result)))
+        expected_lookup = dict((x.name, x) for x in vars(expected)['fields'])
 
-        for field in result:
+        for field in vars(result)['fields']:
             wanted = expected_lookup.get(field.name)
 
             self.assertIsNotNone(expected,
