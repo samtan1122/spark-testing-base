@@ -60,13 +60,13 @@ class SQLTestCase(SparkTestingBaseReuse):
         :param expected: a schema, can be found in a dataframe with dataframe_obj.schema
         :param result: as above
         """
-        self.assertEqual(len(str(expected)), len(str(result)))
+        self.assertEqual(len(expected.simpleString()), len(result.simpleString()))
         expected_lookup = dict((x.name, x) for x in vars(expected)['fields'])
 
         for field in vars(result)['fields']:
             wanted = expected_lookup.get(field.name)
 
-            self.assertIsNotNone(expected,
+            self.assertIsNotNone(wanted,
                     '{0} is not in schema'.format(field.name))
             self.assertEqual(type(wanted.dataType),
                     type(field.dataType),
@@ -75,11 +75,30 @@ class SQLTestCase(SparkTestingBaseReuse):
                     field.nullable,
                     'Nullable property not as expected for {0}'.format(field.name))
 
+    def assertSchemaEqualIgnoringNullable(self, expected, result):
+        """
+        Same with assertSchemaEqual but ignoring Nullable property of any field.
+        """
+        fields_x = vars(expected).get('fields')
+        fields_y = vars(result).get('fields')
+        self.assertEqual(len(fields_x), len(fields_y))
+
+        expected_lookup = dict((x.name, x) for x in fields_x)
+
+        for field in fields_y:
+            wanted = expected_lookup.get(field.name)
+
+            self.assertIsNotNone(wanted,
+                                 '{0} is not in schema'.format(field.name))
+            self.assertEqual(type(wanted.dataType),
+                             type(field.dataType),
+                             'Field {0} is not the expected type'.format(field.name))
+
     def assertDataFrameEqual(self, expected, result, tol=0):
         """Assert that two DataFrames contain the same data.
         When comparing inexact fields uses tol.
         """
-        self.assertSchemaEqual(expected.schema, result.schema)
+        self.assertSchemaEqualIgnoringNullable(expected.schema, result.schema)
         try:
             expectedRDD = expected.rdd.cache()
             resultRDD = result.rdd.cache()
@@ -89,20 +108,25 @@ class SQLTestCase(SparkTestingBaseReuse):
                 return rdd.zipWithIndex().map(lambda x: (x[1], x[0]))
 
             def equal(x, y):
-                if (len(x) != len(y)):
+                if len(x) != len(y):
                     return False
-                elif (x == y):
+                elif x == y:
                     return True
                 else:
-                    for idx in range(len(x)):
-                        a = x[idx]
-                        b = y[idx]
-                        if isinstance(a, float):
-                            if (abs(a - b) > tol):
-                                return False
-                        else:
-                            if a != b:
-                                return False
+                    dict_x = x.asDict()
+                    dict_y = y.asDict()
+                    if dict_x == dict_y:
+                        return True
+                    elif tol > 0:
+                        for key in dict_x.keys():
+                            a = dict_x.get(key)
+                            b = dict_y.get(key)
+                            if isinstance(a, float) and isinstance(b, float):
+                                if abs(a - b) > tol:
+                                    return False
+                            else:
+                                if a != b:
+                                    return False
                 return True
             expectedIndexed = zipWithIndex(expectedRDD)
             resultIndexed = zipWithIndex(resultRDD)
