@@ -100,8 +100,8 @@ class SQLTestCase(SparkTestingBaseReuse):
         """
         self.assertSchemaEqualIgnoringNullable(expected.schema, result.schema)
         try:
-            expectedRDD = expected.rdd.cache()
-            resultRDD = result.rdd.cache()
+            expectedRDD = expected.rdd.cache().sortBy(lambda x: sorted(x.asDict().items()))
+            resultRDD = result.rdd.cache().sortBy(lambda x: sorted(x.asDict().items()))
 
             def zipWithIndex(rdd):
                 """Zip with index (idx, data)"""
@@ -127,7 +127,8 @@ class SQLTestCase(SparkTestingBaseReuse):
                             else:
                                 if a != b:
                                     return False
-                return True
+                        return True
+                return False
             expectedIndexed = zipWithIndex(expectedRDD)
             resultIndexed = zipWithIndex(resultRDD)
             joinedRDD = expectedIndexed.join(resultIndexed)
